@@ -1,287 +1,73 @@
-# WordPress/WooCommerce Product Management Dashboard
+# Welcome to your Lovable project
 
-A modern React-based admin dashboard for managing WordPress/WooCommerce products, categories, and bulk image uploads.
+## Project info
 
-## 🎯 Features
+**URL**: https://lovable.dev/projects/40a0b844-7f5f-4d6a-8633-003a8d0de301
 
-- **Product Management**: View, search, and manage WooCommerce products
-- **Category Management**: Create and organize product categories
-- **Bulk Upload**: Upload multiple images and convert them to products
-- **WordPress Integration**: Connect directly to WordPress/WooCommerce REST API
-- **Modern UI**: Beautiful, responsive design with dark mode support
-- **Real-time Sync**: Direct API integration for real product management
+## How can I edit this code?
 
----
+There are several ways of editing your application.
 
-## 📋 Prerequisites
+**Use Lovable**
 
-### WordPress/WooCommerce Setup
+Simply visit the [Lovable Project](https://lovable.dev/projects/40a0b844-7f5f-4d6a-8633-003a8d0de301) and start prompting.
 
-1. **WordPress Site** (version 5.8+)
-2. **WooCommerce Plugin** (version 3.5+)
-3. **HTTPS Connection** (required for API authentication)
-4. **Permalinks Enabled** (Settings → Permalinks → anything except "Plain")
+Changes made via Lovable will be committed automatically to this repo.
 
-### Generate API Credentials
+**Use your preferred IDE**
 
-Navigate to your WordPress admin panel:
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-1. Go to **WooCommerce → Settings → Advanced → REST API**
-2. Click **Add Key** or **Create an API key**
-3. Fill in the details:
-   - **Description**: "Product Management Dashboard"
-   - **User**: Select admin user
-   - **Permissions**: Read/Write
-4. Click **Generate API Key**
-5. **IMPORTANT**: Copy your **Consumer Key** (ck_xxx) and **Consumer Secret** (cs_xxx) immediately
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
----
+Follow these steps:
 
-## 🚀 Getting Started
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
 
-### 1. Install Dependencies
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
 
-```bash
-npm install
-```
+# Step 3: Install the necessary dependencies.
+npm i
 
-### 2. Run Development Server
-
-```bash
+# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
+**Edit a file directly in GitHub**
 
-### 3. Configure WordPress Connection
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-1. Navigate to **Settings** page in the dashboard
-2. Enter your WordPress connection details:
-   - **Site URL**: `https://yoursite.com` (without trailing slash)
-   - **Consumer Key**: Your WooCommerce API key (ck_xxx)
-   - **Consumer Secret**: Your WooCommerce API secret (cs_xxx)
-3. Click **Test Connection** to verify
-4. Click **Save Settings** to persist configuration
+**Use GitHub Codespaces**
 
----
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## 🔧 WordPress/WooCommerce REST API Integration
+## What technologies are used for this project?
 
-### How It Works
+This project is built with:
 
-This dashboard uses the **WooCommerce REST API v3** to communicate with your WordPress site. All operations are performed through authenticated HTTP requests.
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-### Authentication Method
+## How can I deploy this project?
 
-The app uses **Basic Authentication** over HTTPS:
+Simply open [Lovable](https://lovable.dev/projects/40a0b844-7f5f-4d6a-8633-003a8d0de301) and click on Share -> Publish.
 
-```
-Authorization: Basic base64(consumer_key:consumer_secret)
-```
+## Can I connect a custom domain to my Lovable project?
 
-This is the recommended method by WooCommerce for HTTPS connections.
+Yes, you can!
 
-### API Endpoints Used
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-| Endpoint | Purpose | Method |
-|----------|---------|--------|
-| `/wc/v3/products` | List/create products | GET, POST |
-| `/wc/v3/products/{id}` | Get/update/delete product | GET, PUT, DELETE |
-| `/wc/v3/products/batch` | Bulk operations | POST |
-| `/wc/v3/products/categories` | List/create categories | GET, POST |
-| `/wc/v3/products/categories/{id}` | Get/update/delete category | GET, PUT, DELETE |
-| `/wp/v2/media` | Upload images | POST |
-| `/wc/v3/system_status` | Test connection | GET |
-
----
-
-## 📁 Project Structure
-
-```
-src/
-├── components/
-│   ├── Layout.tsx              # Main layout with sidebar
-│   ├── NavLink.tsx             # Navigation link component
-│   └── ui/                     # shadcn/ui components
-├── hooks/
-│   └── useWordPressSettings.tsx # WordPress settings hook
-├── lib/
-│   ├── wordpress-api.ts        # WordPress REST API client
-│   └── utils.ts                # Utility functions
-├── pages/
-│   ├── Dashboard.tsx           # Dashboard overview
-│   ├── Products.tsx            # Product listing and management
-│   ├── Categories.tsx          # Category management
-│   ├── BulkUpload.tsx          # Bulk image upload
-│   └── Settings.tsx            # WordPress connection settings
-└── App.tsx                     # Main app with routing
-```
-
----
-
-## 🔑 Key Components
-
-### WordPress API Client (`src/lib/wordpress-api.ts`)
-
-Core API client handling all WordPress/WooCommerce interactions:
-
-```typescript
-// Configure API
-wordpressAPI.configure({
-  siteUrl: 'https://yoursite.com',
-  consumerKey: 'ck_xxx',
-  consumerSecret: 'cs_xxx'
-});
-
-// Create a product
-const product = await wordpressAPI.createProduct({
-  name: 'New Product',
-  type: 'simple',
-  regular_price: '29.99',
-  status: 'publish',
-  categories: [{ id: 1 }]
-});
-
-// Upload image and create product
-const result = await wordpressAPI.createProductFromImage(
-  imageFile,
-  { name: 'Product Name', regular_price: '19.99' }
-);
-```
-
-### Settings Hook (`src/hooks/useWordPressSettings.tsx`)
-
-React hook for managing WordPress connection:
-
-```typescript
-const { settings, saveSettings, testConnection, isConfigured } = useWordPressSettings();
-
-// Save credentials
-await saveSettings({
-  siteUrl: 'https://yoursite.com',
-  consumerKey: 'ck_xxx',
-  consumerSecret: 'cs_xxx'
-});
-
-// Test connection
-const result = await testConnection();
-if (result.success) {
-  console.log('Connected!', result.version);
-}
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Connection Failed
-
-**Error**: "API Error: 401 Unauthorized"
-
-**Solutions**:
-- Verify Consumer Key and Consumer Secret are correct
-- Ensure API key has Read/Write permissions
-- Check that HTTPS is enabled on your WordPress site
-- Verify permalinks are not set to "Plain"
-
----
-
-**Error**: "API Error: 404 Not Found"
-
-**Solutions**:
-- Check site URL is correct (no trailing slash)
-- Ensure WooCommerce plugin is active
-- Verify REST API is not disabled
-
----
-
-**Error**: "CORS Error" or "Failed to fetch"
-
-**Solutions**:
-- Add your dashboard domain to WordPress CORS whitelist
-- Install WooCommerce CORS plugin
-- Or add to `functions.php`:
-
-```php
-add_action('rest_api_init', function() {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Authorization, Content-Type');
-});
-```
-
----
-
-## 📚 API Reference
-
-### Product Object Structure
-
-```typescript
-interface Product {
-  id?: number;
-  name: string;                    // Required
-  type?: 'simple' | 'grouped' | 'external' | 'variable';
-  status?: 'draft' | 'pending' | 'private' | 'publish';
-  regular_price?: string;
-  sale_price?: string;
-  sku?: string;
-  categories?: Array<{ id: number }>;
-  images?: Array<{ id?: number; src?: string }>;
-}
-```
-
----
-
-## 📖 Additional Resources
-
-- [WooCommerce REST API Documentation](https://woocommerce.github.io/woocommerce-rest-api-docs/)
-- [WordPress REST API Handbook](https://developer.wordpress.org/rest-api/)
-- [React Documentation](https://react.dev/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [shadcn/ui](https://ui.shadcn.com/)
-
----
-
-## 💡 Master Prompt for AI Agent
-
-This dashboard is a **React-based admin interface** that communicates with **WordPress/WooCommerce** via REST API.
-
-### Key Principles
-
-1. **API-First Design**: All WordPress interactions go through `src/lib/wordpress-api.ts`
-2. **Type Safety**: Maintain TypeScript interfaces for all API objects
-3. **React Hooks Pattern**: Use `useWordPressSettings` for configuration access
-4. **Error Handling**: Always wrap API calls in try-catch with user-friendly toast messages
-5. **Loading States**: Show loading indicators during async operations
-
-### Common Patterns
-
-**Creating a Product**:
-```typescript
-const { api } = useWordPressSettings();
-const product = await api.createProduct({
-  name: 'Product Name',
-  regular_price: '19.99',
-  status: 'publish'
-});
-```
-
-**Uploading Image + Creating Product**:
-```typescript
-const { product, mediaId } = await api.createProductFromImage(
-  imageFile,
-  { name: 'Product', regular_price: '29.99' }
-);
-```
-
-**Bulk Operations**:
-```typescript
-const results = await api.bulkCreateProductsFromImages([
-  { file: image1, productData: { name: 'Product 1', ... } },
-  { file: image2, productData: { name: 'Product 2', ... } }
-]);
-```
-
----
-
-**Built with ❤️ using React, TypeScript, and the WordPress REST API**
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
