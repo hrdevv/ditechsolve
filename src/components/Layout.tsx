@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Package, Grid3x3, Upload, Settings, LayoutDashboard } from "lucide-react";
+import { Package, Grid3x3, Upload, Settings, LayoutDashboard, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useWooCommerce } from "@/contexts/WooCommerceContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,8 +13,29 @@ const navItems = [
   { to: "/products", label: "Products", icon: Package },
   { to: "/categories", label: "Categories", icon: Grid3x3 },
   { to: "/bulk-upload", label: "Bulk Upload", icon: Upload },
+  { to: "/activity-log", label: "Activity Log", icon: ClipboardList },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
+
+const ConnectionStatus = () => {
+  const { isConnected, systemStatus } = useWooCommerce();
+  
+  return (
+    <div className="p-4 border-t border-sidebar-border">
+      <div className="px-4 py-3 bg-sidebar-accent/50 rounded-lg">
+        <p className="text-xs text-sidebar-foreground/60">Status</p>
+        <p className="text-sm font-medium text-sidebar-foreground mt-1">
+          {isConnected ? "Connected" : "Mock Mode"}
+        </p>
+        <p className="text-xs text-sidebar-foreground/60 mt-1">
+          {isConnected && systemStatus
+            ? `WC ${systemStatus.environment.version}`
+            : "Connect WordPress in Settings"}
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
@@ -50,13 +72,7 @@ export const Layout = ({ children }: LayoutProps) => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="px-4 py-3 bg-sidebar-accent/50 rounded-lg">
-            <p className="text-xs text-sidebar-foreground/60">Status</p>
-            <p className="text-sm font-medium text-sidebar-foreground mt-1">Mock Mode</p>
-            <p className="text-xs text-sidebar-foreground/60 mt-1">Connect WordPress in Settings</p>
-          </div>
-        </div>
+        <ConnectionStatus />
       </aside>
 
       {/* Main Content */}

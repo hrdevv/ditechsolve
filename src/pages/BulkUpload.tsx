@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, X, Package, Check } from "lucide-react";
+import { Upload, X, Package, Check, Edit2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ImageEditorDialog } from "@/components/image-editor/ImageEditorDialog";
+import { useCreateProduct } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
+import { activityLogger } from "@/lib/activityLogger";
 
 interface StagedImage {
   id: string;
@@ -27,7 +31,11 @@ interface StagedImage {
 const BulkUpload = () => {
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingImage, setEditingImage] = useState<StagedImage | null>(null);
   const { toast } = useToast();
+  const createProduct = useCreateProduct();
+  const { data: categories } = useCategories();
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -74,14 +82,25 @@ const BulkUpload = () => {
     });
   };
 
-  const convertToProduct = (id: string) => {
+  const convertToProduct = async (id: string) => {
+    const image = stagedImages.find(img => img.id === id);
+    if (!image) return;
+
     setStagedImages(prev =>
       prev.map(img =>
         img.id === id ? { ...img, status: "converting" as const } : img
       )
     );
 
-    setTimeout(() => {
+    try {
+      await createProduct.mutateAsync({
+        name: image.productName,
+        regular_price: image.price,
+        status: "draft",
+        categories: image.category ? [{ id: parseInt(image.category) }] : undefined,
+        images: [{ src: image.preview, name: image.productName }],
+      });
+
       setStagedImages(prev =>
         prev.map(img =>
           img.id === id ? { ...img, status: "converted" as const } : img
@@ -89,14 +108,53 @@ const BulkUpload = () => {
       );
       toast({
         title: "Product created",
-        description: "Image successfully converted to WooCommerce product",
+        description: `"${image.productName}" converted successfully`,
       });
-    }, 1500);
+    } catch (error) {
+      setStagedImages(prev =>
+        prev.map(img =>
+          img.id === id ? { ...img, status: "staged" as const } : img
+        )
+      );
+      toast({
+        title: "Error",
+        description: "Failed to create product",
+        variant: "destructive",
+      });
+    }
   };
 
-  const convertAll = () => {
+  const convertAll = async () => {
     const stagedOnly = stagedImages.filter(img => img.status === "staged");
-    stagedOnly.forEach(img => convertToProduct(img.id));
+    activityLogger.log("bulk_upload_started", `${stagedOnly.length} images`, {
+      details: `Converting ${stagedOnly.length} images to products`,
+    });
+    
+    for (const img of stagedOnly) {
+      await convertToProduct(img.id);
+    }
+    
+    activityLogger.log("bulk_upload_completed", `${stagedOnly.length} products`, {
+      details: `Successfully created ${stagedOnly.length} products`,
+    });
+  };
+
+  const handleEditImage = (image: StagedImage) => {
+    setEditingImage(image);
+    setEditorOpen(true);
+  };
+
+  const handleEditorSave = (blob: Blob, previewUrl: string) => {
+    if (!editingImage) return;
+    
+    setStagedImages(prev =>
+      prev.map(img =>
+        img.id === editingImage.id
+          ? { ...img, preview: previewUrl, file: new File([blob], img.file.name, { type: "image/png" }) }
+          : img
+      )
+    );
+    setEditingImage(null);
   };
 
   return (
@@ -169,14 +227,24 @@ const BulkUpload = () => {
                     className="w-full h-48 object-cover rounded-lg"
                   />
                   {image.status !== "converted" && (
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      className="absolute top-2 right-2"
-                      onClick={() => removeImage(image.id)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        className="h-8 w-8"
+                        onClick={() => handleEditImage(image)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="h-8 w-8"
+                        onClick={() => removeImage(image.id)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   )}
                   <Badge
                     className="absolute bottom-2 right-2"
@@ -226,13 +294,14 @@ const BulkUpload = () => {
                       disabled={image.status !== "staged"}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="electronics">Electronics</SelectItem>
-                        <SelectItem value="wearables">Wearables</SelectItem>
-                        <SelectItem value="accessories">Accessories</SelectItem>
-                        <SelectItem value="computer">Computer</SelectItem>
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id.toString()}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -265,10 +334,18 @@ const BulkUpload = () => {
                   )}
                 </div>
               </Card>
-            ))}
+              ))}
           </div>
         </div>
       )}
+
+      <ImageEditorDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        imageFile={editingImage?.file || null}
+        imageSrc={editingImage?.preview}
+        onSave={handleEditorSave}
+      />
     </div>
   );
 };
