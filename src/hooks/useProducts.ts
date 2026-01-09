@@ -311,3 +311,63 @@ export const useDeleteProduct = () => {
     },
   });
 };
+
+export const useBatchProducts = () => {
+  const queryClient = useQueryClient();
+  const { isConnected } = useWooCommerce();
+
+  return useMutation({
+    mutationFn: async (operations: {
+      create?: CreateProductDTO[];
+      update?: (UpdateProductDTO & { id: number })[];
+      delete?: number[];
+    }) => {
+      if (!isConnected) {
+        // Mock batch operations
+        const result: {
+          create?: WooCommerceProduct[];
+          update?: WooCommerceProduct[];
+          delete?: WooCommerceProduct[];
+        } = {};
+
+        if (operations.update) {
+          result.update = operations.update.map((op) => {
+            const existing = mockProducts.find((p) => p.id === op.id);
+            return { ...existing, ...op } as WooCommerceProduct;
+          });
+        }
+
+        if (operations.delete) {
+          result.delete = operations.delete.map((id) => {
+            const product = mockProducts.find((p) => p.id === id);
+            return product as WooCommerceProduct;
+          });
+        }
+
+        return result;
+      }
+      return productsApi.batch(operations);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      
+      if (result.update) {
+        result.update.forEach((product) => {
+          activityLogger.log("product_updated", product.name, {
+            entityId: product.id.toString(),
+            details: "Bulk update",
+          });
+        });
+      }
+
+      if (result.delete) {
+        result.delete.forEach((product) => {
+          activityLogger.log("product_deleted", product.name, {
+            entityId: product.id.toString(),
+            details: "Bulk delete",
+          });
+        });
+      }
+    },
+  });
+};
