@@ -1,34 +1,92 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, CheckCircle2, Save } from "lucide-react";
+import { AlertCircle, CheckCircle2, Save, Loader2, ExternalLink, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useWooCommerce } from "@/contexts/WooCommerceContext";
 
 const Settings = () => {
-  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
+  const { 
+    isConnected, 
+    isLoading, 
+    credentials, 
+    systemStatus, 
+    error, 
+    connect, 
+    disconnect 
+  } = useWooCommerce();
 
-  const handleTestConnection = () => {
-    toast({
-      title: "Testing connection",
-      description: "Attempting to connect to WordPress...",
+  const [siteUrl, setSiteUrl] = useState(credentials?.siteUrl || "");
+  const [consumerKey, setConsumerKey] = useState(credentials?.consumerKey || "");
+  const [consumerSecret, setConsumerSecret] = useState(credentials?.consumerSecret || "");
+
+  // Product settings state
+  const [createAsDrafts, setCreateAsDrafts] = useState(true);
+  const [autoGenerateSku, setAutoGenerateSku] = useState(true);
+  const [enableBulkLogging, setEnableBulkLogging] = useState(true);
+
+  useEffect(() => {
+    if (credentials) {
+      setSiteUrl(credentials.siteUrl);
+      setConsumerKey(credentials.consumerKey);
+      setConsumerSecret(credentials.consumerSecret);
+    }
+  }, [credentials]);
+
+  const handleTestConnection = async () => {
+    if (!siteUrl || !consumerKey || !consumerSecret) {
+      toast({
+        title: "Missing credentials",
+        description: "Please fill in all connection fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const success = await connect({
+      siteUrl: siteUrl.replace(/\/$/, ""),
+      consumerKey,
+      consumerSecret,
     });
-    
-    setTimeout(() => {
-      setIsConnected(true);
+
+    if (success) {
       toast({
         title: "Connection successful",
         description: "Successfully connected to WordPress/WooCommerce",
       });
-    }, 1500);
+    } else {
+      toast({
+        title: "Connection failed",
+        description: error || "Unable to connect. Check your credentials and CORS settings.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+    setSiteUrl("");
+    setConsumerKey("");
+    setConsumerSecret("");
+    toast({
+      title: "Disconnected",
+      description: "You are now in mock mode",
+    });
   };
 
   const handleSave = () => {
+    // Save product settings to localStorage
+    localStorage.setItem("ditech_product_settings", JSON.stringify({
+      createAsDrafts,
+      autoGenerateSku,
+      enableBulkLogging,
+    }));
     toast({
       title: "Settings saved",
       description: "Your configuration has been updated",
@@ -67,7 +125,25 @@ const Settings = () => {
             </Badge>
           </div>
 
-          {!isConnected && (
+          {isConnected && systemStatus ? (
+            <div className="bg-success/10 border border-success/20 rounded-lg p-4 mb-6">
+              <div className="flex gap-3">
+                <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-foreground mb-1">Connected to WordPress</p>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Site: {systemStatus.environment.home_url}</p>
+                    <p>WordPress: {systemStatus.environment.wp_version}</p>
+                    <p>WooCommerce: {systemStatus.environment.version}</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleDisconnect}>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          ) : (
             <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 mb-6">
               <div className="flex gap-3">
                 <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
@@ -91,7 +167,9 @@ const Settings = () => {
               <Input
                 id="site-url"
                 placeholder="https://yourstore.com"
-                defaultValue=""
+                value={siteUrl}
+                onChange={(e) => setSiteUrl(e.target.value)}
+                disabled={isConnected}
               />
               <p className="text-xs text-muted-foreground">
                 Your WordPress site URL (without trailing slash)
@@ -104,6 +182,9 @@ const Settings = () => {
                 id="consumer-key"
                 placeholder="ck_xxxxxxxxxxxxxxxx"
                 type="password"
+                value={consumerKey}
+                onChange={(e) => setConsumerKey(e.target.value)}
+                disabled={isConnected}
               />
               <p className="text-xs text-muted-foreground">
                 WooCommerce REST API Consumer Key
@@ -116,6 +197,9 @@ const Settings = () => {
                 id="consumer-secret"
                 placeholder="cs_xxxxxxxxxxxxxxxx"
                 type="password"
+                value={consumerSecret}
+                onChange={(e) => setConsumerSecret(e.target.value)}
+                disabled={isConnected}
               />
               <p className="text-xs text-muted-foreground">
                 WooCommerce REST API Consumer Secret
@@ -123,10 +207,18 @@ const Settings = () => {
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button onClick={handleTestConnection}>
-                Test Connection
+              <Button 
+                onClick={handleTestConnection} 
+                disabled={isLoading || isConnected}
+              >
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isConnected ? "Connected" : "Test Connection"}
               </Button>
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                onClick={() => window.open("https://woocommerce.github.io/woocommerce-rest-api-docs/", "_blank")}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
                 View API Documentation
               </Button>
             </div>
@@ -144,7 +236,10 @@ const Settings = () => {
                   New products will be created in draft status
                 </p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={createAsDrafts} 
+                onCheckedChange={setCreateAsDrafts} 
+              />
             </div>
 
             <Separator />
@@ -156,7 +251,10 @@ const Settings = () => {
                   Automatically create unique SKUs for new products
                 </p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={autoGenerateSku} 
+                onCheckedChange={setAutoGenerateSku} 
+              />
             </div>
 
             <Separator />
@@ -168,7 +266,10 @@ const Settings = () => {
                   Keep detailed logs of bulk product creation
                 </p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={enableBulkLogging} 
+                onCheckedChange={setEnableBulkLogging} 
+              />
             </div>
           </div>
         </Card>

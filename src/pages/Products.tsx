@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Plus, Edit, Trash2, MoreVertical, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -20,17 +21,68 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProducts, useDeleteProduct } from "@/hooks/useProducts";
 import { ProductDialog } from "@/components/products/ProductDialog";
+import { ProductFilters, ProductFiltersState } from "@/components/products/ProductFilters";
+import { BulkActions } from "@/components/products/BulkActions";
 import { WooCommerceProduct } from "@/lib/woocommerce/types";
 import { useToast } from "@/hooks/use-toast";
 
 const Products = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<ProductFiltersState>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<WooCommerceProduct | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const { toast } = useToast();
 
-  const { data: products, isLoading } = useProducts({ search: searchQuery || undefined });
+  const { data: products, isLoading } = useProducts({
+    search: searchQuery || undefined,
+    status: filters.status as any,
+    category: filters.category,
+  });
   const deleteProduct = useDeleteProduct();
+
+  // Apply client-side filters for stock and price (API may not support all filters)
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    
+    return products.filter((product) => {
+      // Stock filter
+      if (filters.stockStatus && product.stock_status !== filters.stockStatus) {
+        return false;
+      }
+
+      // Price filters
+      const price = parseFloat(product.price) || 0;
+      if (filters.minPrice && price < parseFloat(filters.minPrice)) {
+        return false;
+      }
+      if (filters.maxPrice && price > parseFloat(filters.maxPrice)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [products, filters]);
+
+  const selectedProducts = useMemo(() => {
+    return filteredProducts.filter((p) => selectedIds.includes(p.id));
+  }, [filteredProducts, selectedIds]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredProducts.map((p) => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectProduct = (productId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, productId]);
+    } else {
+      setSelectedIds((prev) => prev.filter((id) => id !== productId));
+    }
+  };
 
   const handleEdit = (product: WooCommerceProduct) => {
     setEditingProduct(product);
@@ -60,6 +112,9 @@ const Products = () => {
     setDialogOpen(true);
   };
 
+  const isAllSelected = filteredProducts.length > 0 && selectedIds.length === filteredProducts.length;
+  const isSomeSelected = selectedIds.length > 0 && selectedIds.length < filteredProducts.length;
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -78,16 +133,31 @@ const Products = () => {
               className="pl-10"
             />
           </div>
+          <ProductFilters filters={filters} onFiltersChange={setFilters} />
           <Button onClick={handleAddNew}>
             <Plus className="w-4 h-4 mr-2" />
             Add Product
           </Button>
         </div>
 
+        <BulkActions 
+          selectedProducts={selectedProducts} 
+          onClearSelection={() => setSelectedIds([])} 
+        />
+
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={isAllSelected}
+                    ref={(el) => {
+                      if (el) (el as any).indeterminate = isSomeSelected;
+                    }}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-16">Image</TableHead>
                 <TableHead>Product Name</TableHead>
                 <TableHead>SKU</TableHead>
@@ -101,19 +171,25 @@ const Products = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
-              ) : products?.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
-                products?.map((product) => (
-                  <TableRow key={product.id}>
+                filteredProducts.map((product) => (
+                  <TableRow key={product.id} className={selectedIds.includes(product.id) ? "bg-muted/30" : ""}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(product.id)}
+                        onCheckedChange={(checked) => handleSelectProduct(product.id, !!checked)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center overflow-hidden">
                         {product.images?.[0]?.src ? (
