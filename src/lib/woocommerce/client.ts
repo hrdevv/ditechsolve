@@ -5,6 +5,43 @@ import { encryptCredentials, decryptCredentials, isEncryptionSupported } from ".
 const CREDENTIALS_KEY = "ditech_wc_credentials_v2";
 const LEGACY_CREDENTIALS_KEY = "ditech_wc_credentials";
 
+/**
+ * Sanitizes error messages for production to prevent information disclosure.
+ * In development, returns the full error for debugging.
+ */
+function sanitizeErrorMessage(error: Error, context: string = "request"): string {
+  // In development, show full error details for debugging
+  if (import.meta.env.DEV) {
+    return error.message;
+  }
+  
+  // In production, return generic messages to prevent reconnaissance
+  const message = error.message.toLowerCase();
+  
+  if (message.includes("cors") || message.includes("fetch") || message.includes("network")) {
+    return "Connection failed. Please verify your site URL and check that CORS is properly configured.";
+  }
+  
+  if (message.includes("401") || message.includes("unauthorized")) {
+    return "Authentication failed. Please check your API credentials.";
+  }
+  
+  if (message.includes("403") || message.includes("forbidden")) {
+    return "Access denied. Please check your API permissions.";
+  }
+  
+  if (message.includes("404") || message.includes("not found")) {
+    return "Resource not found. Please verify the endpoint exists.";
+  }
+  
+  if (message.includes("500") || message.includes("server error")) {
+    return "Server error occurred. Please try again later.";
+  }
+  
+  // Generic fallback for other errors
+  return `${context === "connection" ? "Connection" : "Request"} failed. Please check your configuration and try again.`;
+}
+
 export class WooCommerceClient {
   private credentials: WooCommerceCredentials | null = null;
   private connected: boolean = false;
@@ -182,17 +219,20 @@ export class WooCommerceClient {
           message: `HTTP ${response.status}: ${response.statusText}`,
         }));
 
-        throw new Error(errorData.message || `Request failed: ${response.status}`);
+        const rawError = new Error(errorData.message || `Request failed: ${response.status}`);
+        throw new Error(sanitizeErrorMessage(rawError, "request"));
       }
 
       return response.json();
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes("fetch")) {
-        throw new Error(
-          "Network error: Unable to connect to the WordPress site. This may be a CORS issue."
-        );
+      if (error instanceof Error) {
+        // Log detailed error in dev mode for debugging
+        if (import.meta.env.DEV) {
+          console.error("[WooCommerce] Request error:", error.message);
+        }
+        throw new Error(sanitizeErrorMessage(error, "connection"));
       }
-      throw error;
+      throw new Error("An unexpected error occurred. Please try again.");
     }
   }
 
