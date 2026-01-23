@@ -20,13 +20,20 @@ export const WooCommerceProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [credentials, setCredentials] = useState<WooCommerceCredentials | null>(
-    wooClient.getCredentials()
-  );
+  const [isLoading, setIsLoading] = useState(true); // Start loading until initialized
+  const [credentials, setCredentials] = useState<WooCommerceCredentials | null>(null);
   const [systemStatus, setSystemStatus] = useState<WooCommerceSystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize credentials asynchronously
+  useEffect(() => {
+    const initCredentials = async () => {
+      await wooClient.ensureInitialized();
+      setCredentials(wooClient.getCredentials());
+      setIsLoading(false);
+    };
+    initCredentials();
+  }, []);
   const testConnection = useCallback(async (): Promise<boolean> => {
     if (!credentials) return false;
 
@@ -56,17 +63,20 @@ export const WooCommerceProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [credentials]);
 
   const connect = async (newCredentials: WooCommerceCredentials): Promise<boolean> => {
-    wooClient.saveCredentials(newCredentials);
-    setCredentials(newCredentials);
-
     setIsLoading(true);
     setError(null);
 
     try {
+      // saveCredentials now validates and encrypts
+      await wooClient.saveCredentials(newCredentials);
+      setCredentials(wooClient.getCredentials());
+
       const status = await wooClient.testConnection();
       setSystemStatus(status);
       setIsConnected(true);
-      activityLogger.log("connection_established", newCredentials.siteUrl, {
+      // Log with sanitized URL (only domain)
+      const sanitizedUrl = new URL(newCredentials.siteUrl).hostname;
+      activityLogger.log("connection_established", sanitizedUrl, {
         details: `WooCommerce ${status.environment.version}`,
       });
       return true;
@@ -74,7 +84,8 @@ export const WooCommerceProvider: React.FC<{ children: React.ReactNode }> = ({
       const message = err instanceof Error ? err.message : "Connection failed";
       setError(message);
       setIsConnected(false);
-      activityLogger.log("connection_failed", newCredentials.siteUrl, {
+      // Log with sanitized info
+      activityLogger.log("connection_failed", "[site]", {
         details: message,
         status: "error",
       });
@@ -92,12 +103,12 @@ export const WooCommerceProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null);
   };
 
-  // Try to reconnect on mount if credentials exist
+  // Try to reconnect on mount if credentials exist (after initialization)
   useEffect(() => {
     if (credentials && !isConnected && !isLoading) {
       testConnection();
     }
-  }, []);
+  }, [credentials, isConnected, isLoading, testConnection]);
 
   return (
     <WooCommerceContext.Provider

@@ -1,35 +1,118 @@
 import { WooCommerceCredentials, WooCommerceSystemStatus, ApiError } from "./types";
+import { validateSiteUrl, validateCredentials } from "./urlValidation";
+import { encryptCredentials, decryptCredentials, isEncryptionSupported } from "./credentialEncryption";
 
-const CREDENTIALS_KEY = "ditech_wc_credentials";
+const CREDENTIALS_KEY = "ditech_wc_credentials_v2";
+const LEGACY_CREDENTIALS_KEY = "ditech_wc_credentials";
 
 export class WooCommerceClient {
   private credentials: WooCommerceCredentials | null = null;
   private connected: boolean = false;
+  private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.loadCredentials();
+    // Don't load credentials in constructor - do it async
+    this.initPromise = this.initialize();
   }
 
-  private loadCredentials(): void {
+  private async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
     try {
-      const stored = localStorage.getItem(CREDENTIALS_KEY);
-      if (stored) {
-        this.credentials = JSON.parse(stored);
+      await this.loadCredentials();
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize WooCommerce client:', error);
+      this.initialized = true;
+    }
+  }
+
+  async ensureInitialized(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+  }
+
+  private async loadCredentials(): Promise<void> {
+    try {
+      // Try to load encrypted credentials first
+      const encrypted = localStorage.getItem(CREDENTIALS_KEY);
+      if (encrypted && isEncryptionSupported()) {
+        const decrypted = await decryptCredentials(encrypted);
+        if (decrypted) {
+          this.credentials = decrypted;
+          return;
+        }
+      }
+
+      // Check for legacy unencrypted credentials and migrate them
+      const legacy = localStorage.getItem(LEGACY_CREDENTIALS_KEY);
+      if (legacy) {
+        try {
+          const parsed = JSON.parse(legacy);
+          this.credentials = parsed;
+          
+          // Migrate to encrypted storage
+          if (isEncryptionSupported()) {
+            await this.saveCredentials(parsed);
+            // Remove legacy storage
+            localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
+          }
+        } catch {
+          // Invalid legacy data
+          localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
+        }
       }
     } catch {
       this.credentials = null;
     }
   }
 
-  saveCredentials(credentials: WooCommerceCredentials): void {
-    this.credentials = credentials;
-    localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
+  async saveCredentials(credentials: WooCommerceCredentials): Promise<void> {
+    // Validate URL before saving
+    const urlValidation = validateSiteUrl(credentials.siteUrl);
+    if (!urlValidation.isValid) {
+      throw new Error(urlValidation.error || "Invalid site URL");
+    }
+
+    // Validate credentials format
+    const credValidation = validateCredentials(credentials.consumerKey, credentials.consumerSecret);
+    if (!credValidation.isValid) {
+      throw new Error(credValidation.error || "Invalid credentials");
+    }
+
+    // Use sanitized URL
+    const sanitizedCredentials: WooCommerceCredentials = {
+      ...credentials,
+      siteUrl: urlValidation.sanitizedUrl || credentials.siteUrl,
+    };
+
+    this.credentials = sanitizedCredentials;
+
+    // Encrypt and store
+    if (isEncryptionSupported()) {
+      try {
+        const encrypted = await encryptCredentials(sanitizedCredentials);
+        localStorage.setItem(CREDENTIALS_KEY, encrypted);
+        // Remove any legacy unencrypted storage
+        localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
+      } catch (error) {
+        console.error('Failed to encrypt credentials:', error);
+        throw new Error("Failed to securely save credentials");
+      }
+    } else {
+      // Fallback for browsers without Web Crypto API (very rare)
+      console.warn('Web Crypto API not available - credentials stored without encryption');
+      localStorage.setItem(LEGACY_CREDENTIALS_KEY, JSON.stringify(sanitizedCredentials));
+    }
   }
 
   clearCredentials(): void {
     this.credentials = null;
     this.connected = false;
     localStorage.removeItem(CREDENTIALS_KEY);
+    localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
   }
 
   getCredentials(): WooCommerceCredentials | null {
@@ -55,7 +138,14 @@ export class WooCommerceClient {
     if (!this.credentials) {
       throw new Error("No credentials configured");
     }
-    const base = this.credentials.siteUrl.replace(/\/$/, "");
+    
+    // Re-validate URL on each request (defense in depth)
+    const validation = validateSiteUrl(this.credentials.siteUrl);
+    if (!validation.isValid) {
+      throw new Error(`Invalid site URL: ${validation.error}`);
+    }
+    
+    const base = validation.sanitizedUrl || this.credentials.siteUrl.replace(/\/$/, "");
     return apiPath === "wc" 
       ? `${base}/wp-json/wc/v3`
       : `${base}/wp-json/wp/v2`;
@@ -66,6 +156,8 @@ export class WooCommerceClient {
     options: RequestInit = {},
     apiPath: "wc" | "wp" = "wc"
   ): Promise<T> {
+    await this.ensureInitialized();
+    
     if (!this.credentials) {
       throw new Error("No credentials configured");
     }
@@ -111,6 +203,8 @@ export class WooCommerceClient {
   }
 
   async uploadMedia(file: File, title?: string): Promise<number> {
+    await this.ensureInitialized();
+    
     if (!this.credentials) {
       throw new Error("No credentials configured");
     }

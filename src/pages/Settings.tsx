@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, CheckCircle2, Save, Loader2, ExternalLink, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Save, Loader2, ExternalLink, Trash2, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { useWooCommerce } from "@/contexts/WooCommerceContext";
+import { validateSiteUrl, validateCredentials } from "@/lib/woocommerce/urlValidation";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -49,16 +50,38 @@ const Settings = () => {
       return;
     }
 
+    // Validate URL before attempting connection
+    const urlValidation = validateSiteUrl(siteUrl);
+    if (!urlValidation.isValid) {
+      toast({
+        title: "Invalid Site URL",
+        description: urlValidation.error,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate credentials format
+    const credValidation = validateCredentials(consumerKey, consumerSecret);
+    if (!credValidation.isValid) {
+      toast({
+        title: "Invalid Credentials",
+        description: credValidation.error,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const success = await connect({
-      siteUrl: siteUrl.replace(/\/$/, ""),
-      consumerKey,
-      consumerSecret,
+      siteUrl: urlValidation.sanitizedUrl || siteUrl.replace(/\/$/, ""),
+      consumerKey: consumerKey.trim(),
+      consumerSecret: consumerSecret.trim(),
     });
 
     if (success) {
       toast({
         title: "Connection successful",
-        description: "Successfully connected to WordPress/WooCommerce",
+        description: "Successfully connected to WordPress/WooCommerce. Credentials are encrypted.",
       });
     } else {
       toast({
