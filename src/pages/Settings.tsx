@@ -27,10 +27,19 @@ const Settings = () => {
   const [consumerKey, setConsumerKey] = useState(credentials?.consumerKey || "");
   const [consumerSecret, setConsumerSecret] = useState(credentials?.consumerSecret || "");
 
-  // Product settings state
-  const [createAsDrafts, setCreateAsDrafts] = useState(true);
-  const [autoGenerateSku, setAutoGenerateSku] = useState(true);
-  const [enableBulkLogging, setEnableBulkLogging] = useState(true);
+  // Product settings state - load from localStorage on init
+  const [createAsDrafts, setCreateAsDrafts] = useState(() => {
+    const saved = localStorage.getItem("ditech_product_settings");
+    return saved ? JSON.parse(saved).createAsDrafts ?? true : true;
+  });
+  const [autoGenerateSku, setAutoGenerateSku] = useState(() => {
+    const saved = localStorage.getItem("ditech_product_settings");
+    return saved ? JSON.parse(saved).autoGenerateSku ?? true : true;
+  });
+  const [enableBulkLogging, setEnableBulkLogging] = useState(() => {
+    const saved = localStorage.getItem("ditech_product_settings");
+    return saved ? JSON.parse(saved).enableBulkLogging ?? true : true;
+  });
 
   useEffect(() => {
     if (credentials) {
