@@ -93,12 +93,15 @@ const BulkUpload = () => {
     );
 
     try {
+      // Convert blob URL to base64 data URL for API compatibility
+      const imageDataUrl = await blobToDataUrl(image.file);
+      
       await createProduct.mutateAsync({
         name: image.productName,
         regular_price: image.price,
         status: "draft",
         categories: image.category ? [{ id: parseInt(image.category) }] : undefined,
-        images: [{ src: image.preview, name: image.productName }],
+        images: [{ src: imageDataUrl, name: image.productName }],
       });
 
       setStagedImages(prev =>
