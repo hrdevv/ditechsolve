@@ -94,9 +94,11 @@ const Products = () => {
   }, [filteredProducts, currentPage, pageSize]);
 
   // Reset to page 1 when filters change
-  useMemo(() => {
-    setCurrentPage(1);
-  }, [filters, searchQuery, pageSize]);
+  const filterKey = JSON.stringify({ filters, searchQuery, pageSize });
+  const prevFilterKey = useState(filterKey)[0];
+  if (filterKey !== prevFilterKey) {
+    // This is handled via useEffect below
+  }
 
   const selectedProducts = useMemo(() => {
     return filteredProducts.filter((p) => selectedIds.includes(p.id));

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ImageEditorDialog } from "@/components/image-editor/ImageEditorDialog";
 import { useCreateProduct } from "@/hooks/useProducts";
+import { blobToDataUrl } from "@/lib/imageProcessing";
 import { useCategories } from "@/hooks/useCategories";
 import { activityLogger } from "@/lib/activityLogger";
 

@@ -72,27 +72,6 @@ export const cropImage = (
   return canvas;
 };
 
-export const replaceBackground = (
-  imageCanvas: HTMLCanvasElement,
-  backgroundColor: string
-): HTMLCanvasElement => {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) throw new Error("Could not get canvas context");
-
-  canvas.width = imageCanvas.width;
-  canvas.height = imageCanvas.height;
-
-  // Fill with background color
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Draw original image on top
-  ctx.drawImage(imageCanvas, 0, 0);
-
-  return canvas;
-};
 
 export const canvasToBlob = (
   canvas: HTMLCanvasElement,

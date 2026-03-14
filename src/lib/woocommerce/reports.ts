@@ -71,7 +71,4 @@ export const reportsApi = {
     return wooClient.request("/reports/products/totals");
   },
 
-  async getCustomersCounts(): Promise<{ slug: string; name: string; total: number }[]> {
-    return wooClient.request("/reports/customers/totals");
-  },
 };
