@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ImageEditorDialog } from "@/components/image-editor/ImageEditorDialog";
 import { useCreateProduct } from "@/hooks/useProducts";
+import { blobToDataUrl } from "@/lib/imageProcessing";
 import { useCategories } from "@/hooks/useCategories";
 import { activityLogger } from "@/lib/activityLogger";
 
@@ -93,12 +94,15 @@ const BulkUpload = () => {
     );
 
     try {
+      // Convert blob URL to base64 data URL for API compatibility
+      const imageDataUrl = await blobToDataUrl(image.file);
+      
       await createProduct.mutateAsync({
         name: image.productName,
         regular_price: image.price,
         status: "draft",
         categories: image.category ? [{ id: parseInt(image.category) }] : undefined,
-        images: [{ src: image.preview, name: image.productName }],
+        images: [{ src: imageDataUrl, name: image.productName }],
       });
 
       setStagedImages(prev =>

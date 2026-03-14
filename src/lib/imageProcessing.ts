@@ -3,9 +3,16 @@ const MAX_IMAGE_DIMENSION = 1024;
 export const loadImage = (file: Blob): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = objectUrl;
   });
 };
 
@@ -65,27 +72,6 @@ export const cropImage = (
   return canvas;
 };
 
-export const replaceBackground = (
-  imageCanvas: HTMLCanvasElement,
-  backgroundColor: string
-): HTMLCanvasElement => {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) throw new Error("Could not get canvas context");
-
-  canvas.width = imageCanvas.width;
-  canvas.height = imageCanvas.height;
-
-  // Fill with background color
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Draw original image on top
-  ctx.drawImage(imageCanvas, 0, 0);
-
-  return canvas;
-};
 
 export const canvasToBlob = (
   canvas: HTMLCanvasElement,

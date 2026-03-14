@@ -3,10 +3,8 @@ import {
   Package, 
   Grid3x3, 
   Upload, 
-  TrendingUp, 
   DollarSign, 
   ShoppingCart, 
-  Users,
   Loader2,
   AlertCircle
 } from "lucide-react";
