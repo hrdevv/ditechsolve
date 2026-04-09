@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { categoriesApi } from "@/lib/woocommerce/categories";
-import { useWooCommerce } from "@/contexts/WooCommerceContext";
+import { useWooCommerce } from "@/contexts/PlatformContext";
 import { activityLogger } from "@/lib/activityLogger";
 import {
   WooCommerceCategory,

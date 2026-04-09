@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useSalesReport, useTopSellers, useOrdersCounts, useProductsCounts } from "@/hooks/useReports";
-import { useWooCommerce } from "@/contexts/WooCommerceContext";
+import { useWooCommerce } from "@/contexts/PlatformContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
 

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, SalesReport, TopSeller, OrdersCount } from "@/lib/woocommerce/reports";
-import { useWooCommerce } from "@/contexts/WooCommerceContext";
+import { useWooCommerce } from "@/contexts/PlatformContext";
 
 // Mock data for demo mode
 const mockSalesReport: SalesReport[] = [
