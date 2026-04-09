@@ -127,21 +127,19 @@ export class WooCommerceClient {
 
     this.credentials = sanitizedCredentials;
 
-    // Encrypt and store
-    if (isEncryptionSupported()) {
-      try {
-        const encrypted = await encryptCredentials(sanitizedCredentials);
-        localStorage.setItem(CREDENTIALS_KEY, encrypted);
-        // Remove any legacy unencrypted storage
-        localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
-      } catch (error) {
-        console.error('Failed to encrypt credentials:', error);
-        throw new Error("Failed to securely save credentials");
-      }
-    } else {
-      // Fallback for browsers without Web Crypto API (very rare)
-      console.warn('Web Crypto API not available - credentials stored without encryption');
-      localStorage.setItem(LEGACY_CREDENTIALS_KEY, JSON.stringify(sanitizedCredentials));
+    // Encrypt and store — refuse to save if encryption is unavailable
+    if (!isEncryptionSupported()) {
+      throw new Error("Secure storage is not available in this browser. Please use a modern browser with Web Crypto API support.");
+    }
+
+    try {
+      const encrypted = await encryptCredentials(sanitizedCredentials);
+      localStorage.setItem(CREDENTIALS_KEY, encrypted);
+      // Remove any legacy unencrypted storage
+      localStorage.removeItem(LEGACY_CREDENTIALS_KEY);
+    } catch (error) {
+      console.error('Failed to encrypt credentials:', error);
+      throw new Error("Failed to securely save credentials");
     }
   }
 
