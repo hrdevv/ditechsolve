@@ -1,4 +1,4 @@
-import { wooClient } from "./client";
+import { proxyClient } from "@/lib/platform/proxyClient";
 import {
   WooCommerceProduct,
   CreateProductDTO,
@@ -9,7 +9,6 @@ import {
 export const productsApi = {
   async list(params?: ProductListParams): Promise<WooCommerceProduct[]> {
     const searchParams = new URLSearchParams();
-    
     if (params?.page) searchParams.set("page", params.page.toString());
     if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
     if (params?.search) searchParams.set("search", params.search);
@@ -18,50 +17,42 @@ export const productsApi = {
     if (params?.category) searchParams.set("category", params.category.toString());
     if (params?.status) searchParams.set("status", params.status);
     if (params?.sku) searchParams.set("sku", params.sku);
-
     const query = searchParams.toString();
-    return wooClient.request<WooCommerceProduct[]>(
-      `/products${query ? `?${query}` : ""}`
-    );
+    return proxyClient.request<WooCommerceProduct[]>(`/products${query ? `?${query}` : ""}`);
   },
 
   async get(id: number): Promise<WooCommerceProduct> {
-    return wooClient.request<WooCommerceProduct>(`/products/${id}`);
+    return proxyClient.request<WooCommerceProduct>(`/products/${id}`);
   },
 
   async create(data: CreateProductDTO): Promise<WooCommerceProduct> {
-    return wooClient.request<WooCommerceProduct>("/products", {
+    return proxyClient.request<WooCommerceProduct>("/products", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   async update(id: number, data: UpdateProductDTO): Promise<WooCommerceProduct> {
-    return wooClient.request<WooCommerceProduct>(`/products/${id}`, {
+    return proxyClient.request<WooCommerceProduct>(`/products/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
   async delete(id: number, force: boolean = false): Promise<WooCommerceProduct> {
-    return wooClient.request<WooCommerceProduct>(
-      `/products/${id}?force=${force}`,
-      { method: "DELETE" }
-    );
+    return proxyClient.request<WooCommerceProduct>(`/products/${id}?force=${force}`, { method: "DELETE" });
   },
 
-  async batch(
-    operations: {
-      create?: CreateProductDTO[];
-      update?: (UpdateProductDTO & { id: number })[];
-      delete?: number[];
-    }
-  ): Promise<{
-    create?: WooCommerceProduct[];
-    update?: WooCommerceProduct[];
-    delete?: WooCommerceProduct[];
-  }> {
-    return wooClient.request("/products/batch", {
+  async batch(operations: {
+    create?: CreateProductDTO[];
+    update?: (UpdateProductDTO & { id: number })[];
+    delete?: number[];
+  }) {
+    return proxyClient.request<{
+      create?: WooCommerceProduct[];
+      update?: WooCommerceProduct[];
+      delete?: WooCommerceProduct[];
+    }>("/products/batch", {
       method: "POST",
       body: JSON.stringify(operations),
     });

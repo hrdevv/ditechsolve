@@ -11,9 +11,11 @@ import {
   ChevronRight,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePlatform } from "@/contexts/PlatformContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -73,6 +75,8 @@ const ConnectionStatus = ({ collapsed }: { collapsed: boolean }) => {
 export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const isMobile = useIsMobile();
+  const { signOut, user } = useAuth();
+  const { loadServerCredentials } = usePlatform();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -80,6 +84,11 @@ export const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  // Load credentials from server on mount
+  useEffect(() => {
+    loadServerCredentials();
+  }, [loadServerCredentials]);
 
   const sidebarContent = (
     <>
@@ -140,8 +149,25 @@ export const Layout = ({ children }: LayoutProps) => {
         })}
       </nav>
 
-      <div className="px-4 pb-2">
+      <div className="px-4 pb-2 space-y-2">
         <ThemeToggle collapsed={collapsed && !isMobile} />
+        {(!collapsed || isMobile) ? (
+          <div className="flex items-center justify-between px-2">
+            <span className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</span>
+            <Button variant="ghost" size="icon" onClick={signOut} className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground flex-shrink-0">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={signOut} className="w-full h-8 text-sidebar-foreground/60 hover:text-sidebar-foreground">
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Sign Out</TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <ConnectionStatus collapsed={collapsed && !isMobile} />
     </>
@@ -150,12 +176,10 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <TooltipProvider delayDuration={0}>
       <div className="flex h-screen bg-background">
-        {/* Mobile overlay */}
         {isMobile && mobileOpen && (
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
         )}
 
-        {/* Sidebar */}
         <aside
           className={cn(
             "border-r border-border bg-sidebar flex flex-col transition-all duration-300 z-50",
@@ -167,9 +191,7 @@ export const Layout = ({ children }: LayoutProps) => {
           {sidebarContent}
         </aside>
 
-        {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Mobile header */}
           {isMobile && (
             <header className="h-14 border-b border-border flex items-center px-4 bg-background flex-shrink-0">
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="mr-3">
