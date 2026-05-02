@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { platformClient } from "@/lib/platform/client";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { PlatformCredentials, PlatformConnectionStatus } from "@/lib/platform/types";
 import { activityLogger } from "@/lib/activityLogger";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PlatformContextValue {
   isConnected: boolean;
@@ -13,35 +14,61 @@ interface PlatformContextValue {
   connect: (credentials: PlatformCredentials) => Promise<boolean>;
   disconnect: () => void;
   testConnection: () => Promise<boolean>;
+  loadServerCredentials: () => Promise<void>;
 }
 
 const PlatformContext = createContext<PlatformContextValue | null>(null);
 
 export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { session } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [credentials, setCredentials] = useState<PlatformCredentials | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<PlatformConnectionStatus | null>(null);
   const [systemInfo, setSystemInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      await platformClient.ensureInitialized();
-      setCredentials(platformClient.getCredentials());
-      setIsLoading(false);
-    };
-    init();
+  const invokeProxy = useCallback(async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("platform-proxy", { body });
+    if (error) throw new Error(error.message);
+    return data;
   }, []);
 
+  const loadServerCredentials = useCallback(async () => {
+    if (!session) return;
+    setIsLoading(true);
+    try {
+      const data = await invokeProxy({ action: "get_credentials" });
+      if (data?.credentials) {
+        const creds: PlatformCredentials = {
+          name: data.credentials.name,
+          baseUrl: data.credentials.base_url,
+          platformType: data.credentials.platform_type,
+          authMethod: data.credentials.auth_method,
+          basePath: data.credentials.base_path,
+          customHeaders: data.credentials.custom_headers as Record<string, string> | undefined,
+        };
+        setCredentials(creds);
+      }
+    } catch (err) {
+      console.error("Failed to load credentials:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session, invokeProxy]);
+
   const testConnection = useCallback(async (): Promise<boolean> => {
-    if (!credentials) return false;
+    if (!credentials || !session) return false;
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await platformClient.testConnection();
-      setSystemInfo(result);
+      const endpoint = credentials.platformType === "woocommerce" ? "/system_status" : "";
+      const result = await invokeProxy({
+        action: "proxy",
+        endpoint,
+        method: "GET",
+      });
 
       const status: PlatformConnectionStatus = {
         connected: true,
@@ -54,13 +81,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (credentials.platformType === "woocommerce" && result?.environment) {
         status.version = result.environment.version;
         status.details = {
-          "WordPress": result.environment.wp_version || "",
-          "WooCommerce": result.environment.version || "",
-          "Site": result.environment.home_url || "",
+          WordPress: result.environment.wp_version || "",
+          WooCommerce: result.environment.version || "",
+          Site: result.environment.home_url || "",
         };
       }
 
       setConnectionStatus(status);
+      setSystemInfo(result);
       setIsConnected(true);
       activityLogger.log("connection_established", credentials.name, {
         details: `${credentials.platformType}${status.version ? ` v${status.version}` : ""}`,
@@ -70,26 +98,55 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const message = err instanceof Error ? err.message : "Connection failed";
       setError(message);
       setIsConnected(false);
-      activityLogger.log("connection_failed", credentials.name, {
-        details: message,
-        status: "error",
-      });
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [credentials]);
+  }, [credentials, session, invokeProxy]);
 
   const connect = async (newCredentials: PlatformCredentials): Promise<boolean> => {
+    if (!session) {
+      setError("You must be signed in to save credentials");
+      return false;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      await platformClient.saveCredentials(newCredentials);
-      setCredentials(platformClient.getCredentials());
+      // Store secrets server-side (username, secret, apiKeyHeader as JSON)
+      const secrets = JSON.stringify({
+        username: newCredentials.username,
+        secret: newCredentials.secret,
+        apiKeyHeader: newCredentials.apiKeyHeader,
+      });
 
-      const result = await platformClient.testConnection();
-      setSystemInfo(result);
+      await invokeProxy({
+        action: "save_credentials",
+        name: newCredentials.name,
+        base_url: newCredentials.baseUrl,
+        platform_type: newCredentials.platformType,
+        auth_method: newCredentials.authMethod,
+        base_path: newCredentials.basePath,
+        custom_headers: newCredentials.customHeaders,
+        encrypted_secrets: secrets,
+      });
+
+      // Set credentials without secrets for display
+      const displayCreds: PlatformCredentials = {
+        ...newCredentials,
+        username: undefined,
+        secret: undefined,
+      };
+      setCredentials(displayCreds);
+
+      // Test connection through proxy
+      const endpoint = newCredentials.platformType === "woocommerce" ? "/system_status" : "";
+      const result = await invokeProxy({
+        action: "proxy",
+        endpoint,
+        method: "GET",
+      });
 
       const status: PlatformConnectionStatus = {
         connected: true,
@@ -98,29 +155,35 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         version: result?.environment?.version,
       };
       setConnectionStatus(status);
+      setSystemInfo(result);
       setIsConnected(true);
 
-      const sanitizedUrl = new URL(newCredentials.baseUrl).hostname;
-      activityLogger.log("connection_established", sanitizedUrl, {
+      activityLogger.log("connection_established", newCredentials.name, {
         details: `${newCredentials.platformType}${status.version ? ` v${status.version}` : ""}`,
       });
+
+      // Clean up any legacy localStorage credentials
+      localStorage.removeItem("ditech_platform_credentials_v3");
+      localStorage.removeItem("ditech_wc_credentials_v2");
+      localStorage.removeItem("ditech_wc_credentials");
+
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";
       setError(message);
       setIsConnected(false);
-      activityLogger.log("connection_failed", "[site]", {
-        details: message,
-        status: "error",
-      });
       return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const disconnect = () => {
-    platformClient.clearCredentials();
+  const disconnect = async () => {
+    try {
+      await invokeProxy({ action: "delete_credentials" });
+    } catch {
+      // best effort
+    }
     setCredentials(null);
     setConnectionStatus(null);
     setSystemInfo(null);
@@ -128,15 +191,20 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setError(null);
   };
 
-  useEffect(() => {
-    if (credentials && !isConnected && !isLoading) {
-      testConnection();
-    }
-  }, [credentials, isConnected, isLoading, testConnection]);
-
   return (
     <PlatformContext.Provider
-      value={{ isConnected, isLoading, credentials, connectionStatus, systemInfo, error, connect, disconnect, testConnection }}
+      value={{
+        isConnected,
+        isLoading,
+        credentials,
+        connectionStatus,
+        systemInfo,
+        error,
+        connect,
+        disconnect,
+        testConnection,
+        loadServerCredentials,
+      }}
     >
       {children}
     </PlatformContext.Provider>
