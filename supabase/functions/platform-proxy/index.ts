@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
           auth_method: auth_method || "bearer",
           base_path: base_path || null,
           custom_headers: custom_headers || null,
-          encrypted_secrets,
+          encrypted_secrets: await encryptSecret(encrypted_secrets, user.id),
           is_active: true,
         })
         .select()
