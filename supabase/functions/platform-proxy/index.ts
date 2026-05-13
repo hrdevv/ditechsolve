@@ -92,8 +92,8 @@ async function safeFetch(initialUrl: string, options: RequestInit, maxRedirects 
   let currentUrl = initialUrl;
   for (let i = 0; i <= maxRedirects; i++) {
     const parsed = new URL(currentUrl);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      throw new Error("Unsupported URL scheme");
+    if (parsed.protocol !== "https:") {
+      throw new Error("Only HTTPS URLs are allowed");
     }
     if (isPrivateHost(parsed.hostname)) {
       throw new Error("Refusing to fetch private/internal address");
@@ -144,6 +144,27 @@ Deno.serve(async (req) => {
       const { name, base_url, platform_type, auth_method, base_path, custom_headers, encrypted_secrets } = body;
       if (!base_url || !encrypted_secrets) {
         return new Response(JSON.stringify({ error: "base_url and encrypted_secrets are required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      let parsedBase: URL;
+      try {
+        parsedBase = new URL(base_url);
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid base_url" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (parsedBase.protocol !== "https:") {
+        return new Response(JSON.stringify({ error: "base_url must use HTTPS" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (isPrivateHost(parsedBase.hostname)) {
+        return new Response(JSON.stringify({ error: "base_url must be a public host" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
