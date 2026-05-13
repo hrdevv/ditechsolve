@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
         fetchOptions.body = JSON.stringify(request_body);
       }
 
-      const apiResponse = await fetch(url, fetchOptions);
+      const apiResponse = await safeFetch(url, fetchOptions);
       const responseData = await apiResponse.text();
 
       return new Response(responseData, {
