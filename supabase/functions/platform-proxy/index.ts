@@ -235,10 +235,11 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Parse encrypted secrets (they contain username/secret/apiKeyHeader)
+      // Decrypt and parse stored secrets
       let secrets: { username?: string; secret?: string; apiKeyHeader?: string };
       try {
-        secrets = JSON.parse(creds.encrypted_secrets);
+        const decrypted = await decryptSecret(creds.encrypted_secrets, user.id);
+        secrets = JSON.parse(decrypted);
       } catch {
         return new Response(JSON.stringify({ error: "Invalid stored credentials" }), {
           status: 500,
