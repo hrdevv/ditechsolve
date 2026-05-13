@@ -148,6 +148,27 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      let parsedBase: URL;
+      try {
+        parsedBase = new URL(base_url);
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid base_url" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (parsedBase.protocol !== "https:") {
+        return new Response(JSON.stringify({ error: "base_url must use HTTPS" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (isPrivateHost(parsedBase.hostname)) {
+        return new Response(JSON.stringify({ error: "base_url must be a public host" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       // Deactivate existing, then insert new
       await supabase
