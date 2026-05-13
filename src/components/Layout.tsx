@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   LogOut,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePlatform } from "@/contexts/PlatformContext";
@@ -32,6 +33,7 @@ const navItems = [
   { to: "/bulk-upload", label: "Bulk Upload", icon: Upload },
   { to: "/activity-log", label: "Activity Log", icon: ClipboardList },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/profile", label: "Account", icon: UserCircle },
 ];
 
 const ConnectionStatus = ({ collapsed }: { collapsed: boolean }) => {
