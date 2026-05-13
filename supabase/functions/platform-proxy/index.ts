@@ -8,6 +8,108 @@ const corsHeaders = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// === Encryption helpers (AES-GCM, key derived per-user via HKDF) ===
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+async function deriveUserKey(userId: string): Promise<CryptoKey> {
+  const ikm = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(supabaseServiceKey),
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+  return await crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: enc.encode(userId),
+      info: enc.encode("platform_credentials.v1"),
+    },
+    ikm,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+function b64encode(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+function b64decode(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function encryptSecret(plaintext: string, userId: string): Promise<string> {
+  const key = await deriveUserKey(userId);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext)),
+  );
+  return `v1:${b64encode(iv)}:${b64encode(ct)}`;
+}
+
+async function decryptSecret(stored: string, userId: string): Promise<string> {
+  if (!stored.startsWith("v1:")) {
+    // Legacy plaintext row — return as-is so callers can still parse JSON.
+    return stored;
+  }
+  const [, ivB64, ctB64] = stored.split(":");
+  const key = await deriveUserKey(userId);
+  const pt = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64decode(ivB64) },
+    key,
+    b64decode(ctB64),
+  );
+  return dec.decode(pt);
+}
+
+// === SSRF protection: block private/loopback hosts on every redirect hop ===
+const PRIVATE_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^192\.168\./,
+  /^0\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+];
+function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return PRIVATE_HOST_PATTERNS.some((p) => p.test(h));
+}
+
+async function safeFetch(initialUrl: string, options: RequestInit, maxRedirects = 5): Promise<Response> {
+  let currentUrl = initialUrl;
+  for (let i = 0; i <= maxRedirects; i++) {
+    const parsed = new URL(currentUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("Unsupported URL scheme");
+    }
+    if (isPrivateHost(parsed.hostname)) {
+      throw new Error("Refusing to fetch private/internal address");
+    }
+    const res = await fetch(currentUrl, { ...options, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return res;
+      currentUrl = new URL(loc, currentUrl).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error("Too many redirects");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
