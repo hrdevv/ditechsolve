@@ -92,8 +92,8 @@ async function safeFetch(initialUrl: string, options: RequestInit, maxRedirects 
   let currentUrl = initialUrl;
   for (let i = 0; i <= maxRedirects; i++) {
     const parsed = new URL(currentUrl);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      throw new Error("Unsupported URL scheme");
+    if (parsed.protocol !== "https:") {
+      throw new Error("Only HTTPS URLs are allowed");
     }
     if (isPrivateHost(parsed.hostname)) {
       throw new Error("Refusing to fetch private/internal address");
