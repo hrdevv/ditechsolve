@@ -215,7 +215,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        console.error("get_credentials failed:", error);
+        return new Response(JSON.stringify({ error: "fetch_failed" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
