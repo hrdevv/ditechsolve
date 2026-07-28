@@ -1,5 +1,5 @@
+import React, { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -8,17 +8,17 @@ import { Layout } from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { PlatformProvider } from "./contexts/PlatformContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Categories from "./pages/Categories";
-import BulkUpload from "./pages/BulkUpload";
-import Settings from "./pages/Settings";
-import ActivityLog from "./pages/ActivityLog";
-import Profile from "./pages/Profile";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 minutes
+      cacheTime: 1000 * 60 * 10, // 10 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuth();
@@ -42,8 +42,23 @@ const AuthRoute = () => {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
   if (user) return <Navigate to="/" replace />;
-  return <Auth />;
+  const Auth = React.lazy(() => import("./pages/Auth"));
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+      <Auth />
+    </Suspense>
+  );
 };
+
+// Lazy-loaded pages (route-level code splitting)
+const Dashboard = React.lazy(() => import("./pages/Dashboard"));
+const Products = React.lazy(() => import("./pages/Products"));
+const Categories = React.lazy(() => import("./pages/Categories"));
+const BulkUpload = React.lazy(() => import("./pages/BulkUpload"));
+const Settings = React.lazy(() => import("./pages/Settings"));
+const ActivityLog = React.lazy(() => import("./pages/ActivityLog"));
+const Profile = React.lazy(() => import("./pages/Profile"));
+const NotFound = React.lazy(() => import("./pages/NotFound"));
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -51,7 +66,6 @@ const App = () => (
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <Sonner />
           <BrowserRouter>
             <ErrorBoundary>
               <Routes>
@@ -62,16 +76,18 @@ const App = () => (
                     <ProtectedRoute>
                       <PlatformProvider>
                         <Layout>
-                          <Routes>
-                            <Route path="/" element={<Dashboard />} />
-                            <Route path="/products" element={<Products />} />
-                            <Route path="/categories" element={<Categories />} />
-                            <Route path="/bulk-upload" element={<BulkUpload />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="/activity-log" element={<ActivityLog />} />
-                            <Route path="/profile" element={<Profile />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
+                          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+                            <Routes>
+                              <Route path="/" element={<Dashboard />} />
+                              <Route path="/products" element={<Products />} />
+                              <Route path="/categories" element={<Categories />} />
+                              <Route path="/bulk-upload" element={<BulkUpload />} />
+                              <Route path="/settings" element={<Settings />} />
+                              <Route path="/activity-log" element={<ActivityLog />} />
+                              <Route path="/profile" element={<Profile />} />
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </Suspense>
                         </Layout>
                       </PlatformProvider>
                     </ProtectedRoute>
