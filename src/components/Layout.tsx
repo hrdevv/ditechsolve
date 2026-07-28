@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Package,
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -92,7 +92,43 @@ export const Layout = ({ children }: LayoutProps) => {
     loadServerCredentials();
   }, [loadServerCredentials]);
 
-  const sidebarContent = (
+  const navElements = useMemo(() => {
+    return navItems.map((item) => {
+      const Icon = item.icon;
+      const isActive = location.pathname === item.to;
+      const showLabel = !collapsed || isMobile;
+
+      const linkEl = (
+        <Link
+          key={item.to}
+          to={item.to}
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
+            !showLabel && "justify-center px-2",
+            isActive
+              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          )}
+        >
+          <Icon className="w-5 h-5 flex-shrink-0" />
+          {showLabel && <span className="font-medium">{item.label}</span>}
+        </Link>
+      );
+
+      if (!showLabel) {
+        return (
+          <Tooltip key={item.to}>
+            <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+            <TooltipContent side="right">{item.label}</TooltipContent>
+          </Tooltip>
+        );
+      }
+
+      return <div key={item.to}>{linkEl}</div>;
+    });
+  }, [location.pathname, collapsed, isMobile]);
+
+  const sidebarContent = useMemo(() => (
     <>
       <div className={cn(
         "p-6 border-b border-sidebar-border flex items-center",
@@ -116,39 +152,7 @@ export const Layout = ({ children }: LayoutProps) => {
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.to;
-          const showLabel = !collapsed || isMobile;
-
-          const linkEl = (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
-                !showLabel && "justify-center px-2",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {showLabel && <span className="font-medium">{item.label}</span>}
-            </Link>
-          );
-
-          if (!showLabel) {
-            return (
-              <Tooltip key={item.to}>
-                <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
-              </Tooltip>
-            );
-          }
-
-          return <div key={item.to}>{linkEl}</div>;
-        })}
+        {navElements}
       </nav>
 
       <div className="px-4 pb-2 space-y-2">
@@ -173,38 +177,36 @@ export const Layout = ({ children }: LayoutProps) => {
       </div>
       <ConnectionStatus collapsed={collapsed && !isMobile} />
     </>
-  );
+  ), [navElements, collapsed, isMobile, user, signOut]);
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <div className="flex h-screen bg-background">
-        {isMobile && mobileOpen && (
-          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
+    <div className="flex h-screen bg-background">
+      {isMobile && mobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
+      )}
+
+      <aside
+        className={cn(
+          "border-r border-border bg-sidebar flex flex-col transition-all duration-300 z-50",
+          isMobile
+            ? cn("fixed inset-y-0 left-0 w-72", mobileOpen ? "translate-x-0" : "-translate-x-full")
+            : collapsed ? "w-16" : "w-64"
         )}
+      >
+        {sidebarContent}
+      </aside>
 
-        <aside
-          className={cn(
-            "border-r border-border bg-sidebar flex flex-col transition-all duration-300 z-50",
-            isMobile
-              ? cn("fixed inset-y-0 left-0 w-72", mobileOpen ? "translate-x-0" : "-translate-x-full")
-              : collapsed ? "w-16" : "w-64"
-          )}
-        >
-          {sidebarContent}
-        </aside>
-
-        <div className="flex-1 flex flex-col min-w-0">
-          {isMobile && (
-            <header className="h-14 border-b border-border flex items-center px-4 bg-background flex-shrink-0">
-              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="mr-3">
-                <Menu className="w-5 h-5" />
-              </Button>
-              <h1 className="text-lg font-semibold text-foreground truncate">diTech Solves</h1>
-            </header>
-          )}
-          <main className="flex-1 overflow-auto">{children}</main>
-        </div>
+      <div className="flex-1 flex flex-col min-w-0">
+        {isMobile && (
+          <header className="h-14 border-b border-border flex items-center px-4 bg-background flex-shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="mr-3">
+              <Menu className="w-5 h-5" />
+            </Button>
+            <h1 className="text-lg font-semibold text-foreground truncate">diTech Solves</h1>
+          </header>
+        )}
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
-    </TooltipProvider>
+    </div>
   );
 };
